@@ -85,6 +85,7 @@ export class AuthService {
       password: hashed,
       role,
     });
-    return user;
+    const token = await this.issueJwt(user);
+    return { token, user };
   }
 }

@@ -26,9 +26,16 @@ export class AuthController {
   ) {}
 
   @Post('register')
-  async register(@Body() dto: RegisterDto) {
-    const user = await this.authService.register(dto.email, dto.password, dto.role);
-    return { id: user.id, email: user.email, role: user.role };
+  async register(
+    @Body() dto: RegisterDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { token, user } = await this.authService.register(dto.email, dto.password, dto.role);
+    const origin = req.headers['origin'] as string | undefined;
+    const cookieName = getAuthCookieName(this.configService);
+    res.cookie(cookieName, token, getAuthCookieOptions(this.configService, origin));
+    return { token, id: user.id, email: user.email, role: user.role };
   }
 
   @Post('login')

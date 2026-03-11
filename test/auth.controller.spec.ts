@@ -42,26 +42,44 @@ describe('AuthController', () => {
     );
   });
 
-  it('register returns projected user shape', async () => {
+  it('register sets auth cookie and returns user projection with token', async () => {
     authService.register.mockResolvedValue({
-      id: 'u1',
-      email: 'user@example.com',
-      role: UserRole.USER_A,
-      password: 'hashed',
+      token: 'jwt-token',
+      user: {
+        id: 'u1',
+        email: 'user@example.com',
+        role: UserRole.USER_A,
+      },
     });
 
-    const result = await controller.register({
-      email: 'user@example.com',
-      password: 'Password123!',
-      role: UserRole.USER_A,
-    });
+    const res = { cookie: jest.fn() };
+    const mockReq = { headers: { origin: 'http://localhost:3000' } };
+    const result = await controller.register(
+      {
+        email: 'user@example.com',
+        password: 'Password123!',
+        role: UserRole.USER_A,
+      },
+      mockReq as any,
+      res as any,
+    );
 
     expect(authService.register).toHaveBeenCalledWith(
       'user@example.com',
       'Password123!',
       UserRole.USER_A,
     );
-    expect(result).toEqual({ id: 'u1', email: 'user@example.com', role: UserRole.USER_A });
+    expect(res.cookie).toHaveBeenCalledWith(
+      'takehome_auth',
+      'jwt-token',
+      expect.objectContaining({ httpOnly: true }),
+    );
+    expect(result).toEqual({
+      token: 'jwt-token',
+      id: 'u1',
+      email: 'user@example.com',
+      role: UserRole.USER_A,
+    });
   });
 
   it('login sets auth cookie and returns user projection with token', async () => {
