@@ -18,64 +18,36 @@ function normalizeSameSite(v: string | undefined): SameSite | undefined {
   return undefined;
 }
 
-function normalizeOrigin(origin: string): string {
-  const trimmed = origin.trim();
-  if (!trimmed) return '';
-  if (trimmed === '*') return '*';
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  if (/^(localhost|127\.0\.0\.1)(:\d+)?$/i.test(trimmed)) return `http://${trimmed}`;
-  return `https://${trimmed}`;
-}
-
-function parseCorsOrigins(raw: string | undefined): string[] {
-  if (!raw) return [];
-  return raw
-    .split(',')
-    .map((v) => normalizeOrigin(v))
-    .filter((v) => v.length > 0);
-}
-
-function isLocalOrigin(origin: string): boolean {
-  if (origin === '*') return false;
+function isLocalhostOrigin(origin: string): boolean {
   try {
-    const parsed = new URL(origin);
-    return ['localhost', '127.0.0.1'].includes(parsed.hostname.toLowerCase());
+    const { hostname } = new URL(origin);
+    return hostname === 'localhost' || hostname === '127.0.0.1';
   } catch {
     return false;
   }
-}
-
-function getOriginHost(origin: string): string | undefined {
-  if (origin === '*') return undefined;
-  try {
-    return new URL(origin).hostname.toLowerCase();
-  } catch {
-    return undefined;
-  }
-}
-
-function normalizeCookieDomain(raw: string | undefined): string | undefined {
-  if (!raw) return undefined;
-  const trimmed = raw.trim().replace(/^\.+/, '').toLowerCase();
-  if (!trimmed) return undefined;
-  if (['localhost', '127.0.0.1'].includes(trimmed)) return undefined;
-  if (!/^[a-z0-9.-]+$/.test(trimmed)) return undefined;
-  if (!trimmed.includes('.')) return undefined;
-  return trimmed;
 }
 
 export function getAuthCookieName(configService: ConfigService): string {
   return configService.get<string>('COOKIE_NAME') ?? 'takehome_auth';
 }
 
-export function getAuthCookieOptions(configService: ConfigService): CookieOptions {
+/**
+ * Pass the request `origin` header so cookies are automatically set to
+ * SameSite=none + Secure whenever the request comes from a non-local origin
+ * (dev tunnels, staging, production frontend on a different domain).
+ */
+export function getAuthCookieOptions(
+  configService: ConfigService,
+  origin?: string,
+): CookieOptions {
   const nodeEnv =
     (configService.get<string>('NODE_ENV') ?? process.env.NODE_ENV ?? 'development').toLowerCase();
   const isProd = nodeEnv === 'production';
 
-  const configuredCorsOrigins = parseCorsOrigins(configService.get<string>('APP_CORS_ORIGIN'));
-  const hasRemoteCorsOrigin = configuredCorsOrigins.some((origin) => !isLocalOrigin(origin));
-  const shouldUseCrossSiteCookies = isProd || hasRemoteCorsOrigin;
+  // Cross-site if prod, OR if the request origin is a non-localhost host
+  // (covers dev tunnels, Amplify → local backend, etc.)
+  const isRemoteOrigin = !!origin && !isLocalhostOrigin(origin);
+  const shouldUseCrossSiteCookies = isProd || isRemoteOrigin;
 
   const sameSite =
     normalizeSameSite(configService.get<string>('COOKIE_SAME_SITE')) ??
@@ -84,18 +56,6 @@ export function getAuthCookieOptions(configService: ConfigService): CookieOption
     parseBool(configService.get<string>('COOKIE_SECURE')) ??
     (shouldUseCrossSiteCookies || sameSite === 'none');
 
-  const cookieDomainRaw = configService.get<string>('COOKIE_DOMAIN');
-  const cookieDomainCandidate = normalizeCookieDomain(cookieDomainRaw);
-  const configuredCorsHosts = configuredCorsOrigins
-    .map((origin) => getOriginHost(origin))
-    .filter((host): host is string => Boolean(host));
-
-  // A backend cannot set cookies for an unrelated frontend host.
-  const cookieDomain =
-    cookieDomainCandidate && configuredCorsHosts.includes(cookieDomainCandidate)
-      ? undefined
-      : cookieDomainCandidate;
-
   const maxAgeMsRaw = configService.get<string>('COOKIE_MAX_AGE_MS');
   const maxAge = maxAgeMsRaw ? Number(maxAgeMsRaw) : 1000 * 60 * 60;
 
@@ -103,7 +63,6 @@ export function getAuthCookieOptions(configService: ConfigService): CookieOption
     httpOnly: true,
     secure: cookieSecure,
     sameSite,
-    domain: cookieDomain,
     maxAge: Number.isFinite(maxAge) ? maxAge : 1000 * 60 * 60,
     path: '/',
   };

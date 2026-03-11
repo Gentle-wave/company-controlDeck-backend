@@ -26,9 +26,6 @@ describe('AuthController', () => {
         if (key === 'COOKIE_NAME') {
           return 'takehome_auth';
         }
-        if (key === 'COOKIE_DOMAIN') {
-          return 'localhost';
-        }
         if (key === 'NODE_ENV') {
           return 'development';
         }
@@ -67,7 +64,7 @@ describe('AuthController', () => {
     expect(result).toEqual({ id: 'u1', email: 'user@example.com', role: UserRole.USER_A });
   });
 
-  it('login sets auth cookie and returns user projection', async () => {
+  it('login sets auth cookie and returns user projection with token', async () => {
     authService.login.mockResolvedValue({
       token: 'jwt-token',
       user: {
@@ -80,8 +77,10 @@ describe('AuthController', () => {
       cookie: jest.fn(),
     };
 
+    const mockReq = { headers: { origin: 'http://localhost:3000' } };
     const result = await controller.login(
       { email: 'b@example.com', password: 'Password123!' },
+      mockReq as any,
       res as any,
     );
 
@@ -94,7 +93,12 @@ describe('AuthController', () => {
         maxAge: 1000 * 60 * 60,
       }),
     );
-    expect(result).toEqual({ id: 'u2', email: 'b@example.com', role: UserRole.USER_B });
+    expect(result).toEqual({
+      token: 'jwt-token',
+      id: 'u2',
+      email: 'b@example.com',
+      role: UserRole.USER_B,
+    });
   });
 
   it('logout clears cookie and returns success', async () => {
@@ -102,7 +106,8 @@ describe('AuthController', () => {
       clearCookie: jest.fn(),
     };
 
-    const result = await controller.logout(res as any);
+    const mockReq = { headers: { origin: 'http://localhost:3000' } };
+    const result = await controller.logout(mockReq as any, res as any);
 
     expect(res.clearCookie).toHaveBeenCalledWith(
       'takehome_auth',
@@ -115,7 +120,7 @@ describe('AuthController', () => {
     expect(result).toEqual({ success: true });
   });
 
-  it('firebase login provisions/returns user projection and sets cookie', async () => {
+  it('firebase login provisions/returns user projection with token and sets cookie', async () => {
     firebaseAdminService.verifyIdToken.mockResolvedValue({ email: 'fb@example.com' });
     authService.loginOrProvisionByEmail.mockResolvedValue({
       token: 'jwt-token',
@@ -123,9 +128,11 @@ describe('AuthController', () => {
       isNewUser: true,
     });
 
+    const mockReq = { headers: { origin: 'http://localhost:3000' } };
     const res = { cookie: jest.fn() };
     const result = await controller.firebaseLogin(
       { idToken: 'some-firebase-id-token', role: UserRole.USER_A } as any,
+      mockReq as any,
       res as any,
     );
 
@@ -136,6 +143,11 @@ describe('AuthController', () => {
       'jwt-token',
       expect.objectContaining({ httpOnly: true }),
     );
-    expect(result).toEqual({ id: 'u3', email: 'fb@example.com', role: UserRole.USER_A });
+    expect(result).toEqual({
+      token: 'jwt-token',
+      id: 'u3',
+      email: 'fb@example.com',
+      role: UserRole.USER_A,
+    });
   });
 });

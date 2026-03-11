@@ -4,10 +4,11 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Req,
   Res,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { ConfigService } from '@nestjs/config';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -32,19 +33,23 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
+  async login(
+    @Body() dto: LoginDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const { token, user } = await this.authService.login(dto.email, dto.password);
-
+    const origin = req.headers['origin'] as string | undefined;
     const cookieName = getAuthCookieName(this.configService);
-    res.cookie(cookieName, token, getAuthCookieOptions(this.configService));
-
-    return { id: user.id, email: user.email, role: user.role };
+    res.cookie(cookieName, token, getAuthCookieOptions(this.configService, origin));
+    return { token, id: user.id, email: user.email, role: user.role };
   }
 
   @Post('firebase/login')
   @HttpCode(HttpStatus.OK)
   async firebaseLogin(
     @Body() dto: FirebaseLoginDto,
+    @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
     const decoded = await this.firebaseAdminService.verifyIdToken(dto.idToken);
@@ -54,17 +59,19 @@ export class AuthController {
       throw new BadRequestException('Firebase token missing email');
     }
 
+    const origin = req.headers['origin'] as string | undefined;
     const { token, user } = await this.authService.loginOrProvisionByEmail(email, dto.role);
     const cookieName = getAuthCookieName(this.configService);
-    res.cookie(cookieName, token, getAuthCookieOptions(this.configService));
-    return { id: user.id, email: user.email, role: user.role };
+    res.cookie(cookieName, token, getAuthCookieOptions(this.configService, origin));
+    return { token, id: user.id, email: user.email, role: user.role };
   }
 
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  async logout(@Res({ passthrough: true }) res: Response) {
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    const origin = req.headers['origin'] as string | undefined;
     const cookieName = getAuthCookieName(this.configService);
-    res.clearCookie(cookieName, getAuthCookieOptions(this.configService));
+    res.clearCookie(cookieName, getAuthCookieOptions(this.configService, origin));
     return { success: true };
   }
 }
