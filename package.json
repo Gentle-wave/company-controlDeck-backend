@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Take-home assignment backend built with NestJS, TypeScript, Prisma, and PostgreSQL.",
   "scripts": {
-    "build": "nest build",
+    "build": "npx --yes @nestjs/cli@11 build",
     "start": "node dist/src/main.js",
     "start:dev": "nest start --watch --debug --tsc",
     "start:prod": "node dist/src/main.js",
