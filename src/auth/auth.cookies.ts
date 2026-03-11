@@ -31,11 +31,6 @@ export function getAuthCookieName(configService: ConfigService): string {
   return configService.get<string>('COOKIE_NAME') ?? 'takehome_auth';
 }
 
-/**
- * Pass the request `origin` header so cookies are automatically set to
- * SameSite=none + Secure whenever the request comes from a non-local origin
- * (dev tunnels, staging, production frontend on a different domain).
- */
 export function getAuthCookieOptions(
   configService: ConfigService,
   origin?: string,

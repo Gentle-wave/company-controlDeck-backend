@@ -20,13 +20,11 @@ async function bootstrap() {
   const trustProxy = (configService.get<string>('TRUST_PROXY') ?? '').toLowerCase() === 'true';
   if (nodeEnv === 'production' || trustProxy) {
     const httpAdapter = app.getHttpAdapter();
-    // Express behind Render/other proxies needs this for secure cookies, IP, etc.
     httpAdapter.getInstance().set('trust proxy', 1);
   }
 
   app.enableCors(corsOptions);
 
-  // Auth-source diagnostic middleware — logs method, path, origin, and auth mechanism
   const authLogger = new Logger('AuthDiag');
   const cookieName = configService.get<string>('COOKIE_NAME') ?? 'takehome_auth';
   app.use((req: Request, _res: Response, next: NextFunction) => {
@@ -35,7 +33,6 @@ async function bootstrap() {
     const hasBearerHeader =
       typeof req.headers['authorization'] === 'string' &&
       req.headers['authorization'].startsWith('Bearer ');
-    // cookie-parser hasn't run yet so we peek at the raw Cookie header
     const cookieHeader = req.headers['cookie'] ?? '';
     const hasCookieToken = cookieHeader
       .split(';')
@@ -73,7 +70,6 @@ async function bootstrap() {
   Number(process.env.APP_PORT) ??
   4001;
   await app.listen(port);
-  // eslint-disable-next-line no-console
   console.log(`Application is running on port ${port}`);
 }
 

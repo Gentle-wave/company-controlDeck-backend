@@ -62,7 +62,6 @@ export class AuthController {
     const decoded = await this.firebaseAdminService.verifyIdToken(dto.idToken);
     const email = decoded.email;
     if (!email) {
-      // Some providers can return tokens without email; we keep the system email-based.
       throw new BadRequestException('Firebase token missing email');
     }
 
