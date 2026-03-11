@@ -6,15 +6,20 @@ describe('AuthController', () => {
   let authService: {
     register: jest.Mock;
     login: jest.Mock;
+    loginOrProvisionByEmail: jest.Mock;
   };
   let configService: {
     get: jest.Mock;
+  };
+  let firebaseAdminService: {
+    verifyIdToken: jest.Mock;
   };
 
   beforeEach(() => {
     authService = {
       register: jest.fn(),
       login: jest.fn(),
+      loginOrProvisionByEmail: jest.fn(),
     };
     configService = {
       get: jest.fn((key: string) => {
@@ -24,10 +29,20 @@ describe('AuthController', () => {
         if (key === 'COOKIE_DOMAIN') {
           return 'localhost';
         }
+        if (key === 'NODE_ENV') {
+          return 'development';
+        }
         return undefined;
       }),
     };
-    controller = new AuthController(authService as any, configService as any);
+    firebaseAdminService = {
+      verifyIdToken: jest.fn(),
+    };
+    controller = new AuthController(
+      authService as any,
+      configService as any,
+      firebaseAdminService as any,
+    );
   });
 
   it('register returns projected user shape', async () => {
@@ -76,7 +91,6 @@ describe('AuthController', () => {
       expect.objectContaining({
         httpOnly: true,
         sameSite: 'lax',
-        domain: 'localhost',
         maxAge: 1000 * 60 * 60,
       }),
     );
@@ -90,7 +104,38 @@ describe('AuthController', () => {
 
     const result = await controller.logout(res as any);
 
-    expect(res.clearCookie).toHaveBeenCalledWith('takehome_auth');
+    expect(res.clearCookie).toHaveBeenCalledWith(
+      'takehome_auth',
+      expect.objectContaining({
+        httpOnly: true,
+        sameSite: 'lax',
+        maxAge: 1000 * 60 * 60,
+      }),
+    );
     expect(result).toEqual({ success: true });
+  });
+
+  it('firebase login provisions/returns user projection and sets cookie', async () => {
+    firebaseAdminService.verifyIdToken.mockResolvedValue({ email: 'fb@example.com' });
+    authService.loginOrProvisionByEmail.mockResolvedValue({
+      token: 'jwt-token',
+      user: { id: 'u3', email: 'fb@example.com', role: UserRole.USER_A },
+      isNewUser: true,
+    });
+
+    const res = { cookie: jest.fn() };
+    const result = await controller.firebaseLogin(
+      { idToken: 'some-firebase-id-token', role: UserRole.USER_A } as any,
+      res as any,
+    );
+
+    expect(firebaseAdminService.verifyIdToken).toHaveBeenCalledWith('some-firebase-id-token');
+    expect(authService.loginOrProvisionByEmail).toHaveBeenCalledWith('fb@example.com', UserRole.USER_A);
+    expect(res.cookie).toHaveBeenCalledWith(
+      'takehome_auth',
+      'jwt-token',
+      expect.objectContaining({ httpOnly: true }),
+    );
+    expect(result).toEqual({ id: 'u3', email: 'fb@example.com', role: UserRole.USER_A });
   });
 });

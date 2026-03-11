@@ -4,7 +4,7 @@ import { UsersService } from '../src/users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { UserRole } from '@prisma/client';
-import { UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -88,5 +88,34 @@ describe('AuthService', () => {
 
     expect(jwtService.signAsync).toHaveBeenCalledWith({ sub: 'u1', role: UserRole.USER_B });
     expect(result).toEqual({ token: 'signed-token', user });
+  });
+
+  it('provisions new user on first firebase login when role provided', async () => {
+    usersService.findByEmail.mockResolvedValue(null);
+    usersService.create.mockImplementation(async (data: any) => ({
+      id: 'new-id',
+      email: data.email,
+      password: data.password,
+      role: data.role,
+    }));
+
+    const result = await service.loginOrProvisionByEmail('new@example.com', UserRole.USER_A);
+
+    expect(usersService.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: 'new@example.com',
+        role: UserRole.USER_A,
+        password: expect.any(String),
+      }),
+    );
+    expect(jwtService.signAsync).toHaveBeenCalledWith({ sub: 'new-id', role: UserRole.USER_A });
+    expect(result.isNewUser).toBe(true);
+  });
+
+  it('rejects first firebase login without role', async () => {
+    usersService.findByEmail.mockResolvedValue(null);
+    await expect(service.loginOrProvisionByEmail('new@example.com')).rejects.toThrow(
+      BadRequestException,
+    );
   });
 });

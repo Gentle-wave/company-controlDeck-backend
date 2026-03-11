@@ -11,12 +11,17 @@ import { Response } from 'express';
 import { ConfigService } from '@nestjs/config';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { BadRequestException } from '@nestjs/common';
+import { getAuthCookieName, getAuthCookieOptions } from './auth.cookies';
+import { FirebaseAdminService } from './firebase-admin.service';
+import { FirebaseLoginDto } from './dto/firebase-login.dto';
 
 @Controller('auth')
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly configService: ConfigService,
+    private readonly firebaseAdminService: FirebaseAdminService,
   ) {}
 
   @Post('register')
@@ -30,25 +35,36 @@ export class AuthController {
   async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
     const { token, user } = await this.authService.login(dto.email, dto.password);
 
-    const cookieName = this.configService.get<string>('COOKIE_NAME') ?? 'takehome_auth';
-    const cookieDomain = this.configService.get<string>('COOKIE_DOMAIN') ?? 'localhost';
+    const cookieName = getAuthCookieName(this.configService);
+    res.cookie(cookieName, token, getAuthCookieOptions(this.configService));
 
-    res.cookie(cookieName, token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      domain: cookieDomain,
-      maxAge: 1000 * 60 * 60,
-    });
+    return { id: user.id, email: user.email, role: user.role };
+  }
 
+  @Post('firebase/login')
+  @HttpCode(HttpStatus.OK)
+  async firebaseLogin(
+    @Body() dto: FirebaseLoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const decoded = await this.firebaseAdminService.verifyIdToken(dto.idToken);
+    const email = decoded.email;
+    if (!email) {
+      // Some providers can return tokens without email; we keep the system email-based.
+      throw new BadRequestException('Firebase token missing email');
+    }
+
+    const { token, user } = await this.authService.loginOrProvisionByEmail(email, dto.role);
+    const cookieName = getAuthCookieName(this.configService);
+    res.cookie(cookieName, token, getAuthCookieOptions(this.configService));
     return { id: user.id, email: user.email, role: user.role };
   }
 
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   async logout(@Res({ passthrough: true }) res: Response) {
-    const cookieName = this.configService.get<string>('COOKIE_NAME') ?? 'takehome_auth';
-    res.clearCookie(cookieName);
+    const cookieName = getAuthCookieName(this.configService);
+    res.clearCookie(cookieName, getAuthCookieOptions(this.configService));
     return { success: true };
   }
 }

@@ -13,8 +13,22 @@ async function bootstrap() {
 
   const configService = app.get(ConfigService);
 
+  const nodeEnv =
+    (configService.get<string>('NODE_ENV') ?? process.env.NODE_ENV ?? 'development').toLowerCase();
+  const trustProxy = (configService.get<string>('TRUST_PROXY') ?? '').toLowerCase() === 'true';
+  if (nodeEnv === 'production' || trustProxy) {
+    const httpAdapter = app.getHttpAdapter();
+    // Express behind Render/other proxies needs this for secure cookies, IP, etc.
+    httpAdapter.getInstance().set('trust proxy', 1);
+  }
+
+  const corsOriginRaw = configService.get<string>('APP_CORS_ORIGIN');
+  const corsOrigin = corsOriginRaw?.includes(',')
+    ? corsOriginRaw.split(',').map((s) => s.trim())
+    : corsOriginRaw;
+
   app.enableCors({
-    origin: configService.get<string>('APP_CORS_ORIGIN'),
+    origin: corsOrigin,
     credentials: true,
   });
 
