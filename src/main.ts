@@ -45,7 +45,10 @@ async function bootstrap() {
 
   app.useGlobalFilters(new HttpExceptionFilter());
 
-  const port = configService.get<number>('APP_PORT') ?? 4000;
+  const port =
+  configService.get<number>('APP_PORT') ??
+  Number(process.env.PORT) ??
+  4000;
   await app.listen(port);
   // eslint-disable-next-line no-console
   console.log(`Application is running on port ${port}`);
