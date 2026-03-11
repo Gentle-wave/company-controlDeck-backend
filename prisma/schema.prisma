@@ -1,0 +1,53 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER_A
+  USER_B
+}
+
+model User {
+  id        String      @id @default(uuid())
+  email     String      @unique
+  password  String
+  role      UserRole
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  companyInputs CompanyInput[]
+  ownedImages    ImageUpload[] @relation("OwnerImages")
+  uploadedImages ImageUpload[] @relation("UploaderImages")
+}
+
+model CompanyInput {
+  id               String   @id @default(uuid())
+  companyName      String
+  numberOfUsers    Int
+  numberOfProducts Int
+  percentage       Float
+  createdAt        DateTime @default(now())
+
+  owner   User   @relation(fields: [ownerId], references: [id])
+  ownerId String
+}
+
+model ImageUpload {
+  id           String   @id @default(uuid())
+  filename     String
+  mimetype     String
+  size         Int
+  storagePath  String
+  createdAt    DateTime @default(now())
+
+  owner   User   @relation("OwnerImages", fields: [ownerId], references: [id])
+  ownerId String
+
+  uploader   User   @relation("UploaderImages", fields: [uploaderId], references: [id])
+  uploaderId String
+}
