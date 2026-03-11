@@ -22,7 +22,7 @@ async function bootstrap() {
     httpAdapter.getInstance().set('trust proxy', 1);
   }
 
-  const corsOriginRaw = configService.get<string>('APP_CORS_ORIGIN');
+  const corsOriginRaw = configService.get<string>('APP_CORS_ORIGIN') ?? '';
   const corsOrigin = corsOriginRaw?.includes(',')
     ? corsOriginRaw.split(',').map((s) => s.trim())
     : corsOriginRaw;
