@@ -52,6 +52,18 @@ async function bootstrap() {
     next();
   });
 
+  const postmanDocumentationUrl =
+    'https://documenter.getpostman.com/view/29809802/2sBXiesuam';
+  const httpServer = app.getHttpAdapter().getInstance();
+  httpServer.get('/', (_req: Request, res: Response) => {
+    res.status(200).json({
+      message: 'Welcome to ControlDeck API.',
+      documentation:
+        'Check the published Postman documentation for detailed API usage.',
+      postmanDocumentationUrl,
+    });
+  });
+
   app.use(helmet.default());
   app.use(cookieParser());
 

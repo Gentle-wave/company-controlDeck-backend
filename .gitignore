@@ -7,3 +7,4 @@ coverage
 .DS_Store
 *.sqlite
 /uploads
+Company-ControlDeck.postman_collection.json
